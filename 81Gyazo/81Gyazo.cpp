@@ -112,7 +112,8 @@ void RegisterWindowClass(HINSTANCE Instance)
 	WndClass.style=0;//WM_PAINTを送らない
 	WndClass.lpfnWndProc=WndProc;
 	WndClass.hInstance=Instance;
-	WndClass.hIcon=LoadIcon(Instance,MAKEINTRESOURCE(IDI_MAMEGYAZOWIN));
+	WndClass.hIcon=LoadIcon(Instance,MAKEINTRESOURCE(IDI_81GYAZOWIN));
+	WndClass.hIconSm=(HICON)LoadImage(Instance,MAKEINTRESOURCE(IDI_81GYAZOWIN),IMAGE_ICON,16,16,0);
 	WndClass.hCursor=LoadCursor(Instance,MAKEINTRESOURCE(IDC_CURSOR1));//十字カーソル
 	WndClass.hbrBackground=0;//背景も設定しない
 	WndClass.lpszClassName=WindowClass;
@@ -198,9 +199,10 @@ bool GetEncoderClassID(const std::wstring& MimeType,CLSID* ClassID)
 //ヘッダを見てPNG画像かどうか(一応)チェック
 bool IsPNG(const std::wstring& FileName)
 {
-	std::array<unsigned char,8> PNGHeader={0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A},ReadHeader;	
+	std::array<unsigned char,8> PNGHeader={0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A},ReadHeader={0};	
 	std::ifstream File(FileName,std::ios::in|std::ios::binary);
 	File.read((char*)ReadHeader.data(),ReadHeader.size());
+	File.close();
 	return ReadHeader==PNGHeader;
 }
 
@@ -280,7 +282,7 @@ LRESULT __stdcall LayerWndProc(HWND WindowHandle,UINT Message,WPARAM WParam,LPAR
 LRESULT __stdcall WndProc(HWND WindowHandle,UINT Message,WPARAM WParam,LPARAM LParam)
 {
 	static bool CaptureStarted=false;
-	static RECT CaptureRect={0,0,0,0};
+	static RECT CaptureRect={0};
 	
 	switch(Message){
 	case WM_RBUTTONDOWN:
@@ -404,6 +406,7 @@ void SetClipBoardText(const std::wstring& String)
 
 	//解放
 	GlobalFree(TextHandle);
+	return;
 }
 
 //指定されたURLをブラウザで開く
