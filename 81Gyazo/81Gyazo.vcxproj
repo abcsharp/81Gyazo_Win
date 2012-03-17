@@ -65,7 +65,6 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <AdditionalOptions>
       </AdditionalOptions>
-      <Version>1.0</Version>
       <SubSystem>Windows</SubSystem>
     </Link>
     <ResourceCompile>

@@ -13,6 +13,7 @@ const wchar_t* Title=L"81Gyazo",
 	*ScriptName=L"upload.cgi";
 HWND LayerWindowHandle;
 int OffsetX, OffsetY;//画面オフセット
+bool ShowBrowser;
 Gdiplus::GdiplusStartupInput StartupInput;
 ULONG_PTR Token;
 std::shared_ptr<void> Brush;//HBRUSH
@@ -32,7 +33,7 @@ void SetClipBoardText(const std::wstring& String);
 void OpenUrl(const std::wstring& Url);
 std::string GetID();
 bool SaveID(const std::wstring& IDString);
-bool UploadFile(const std::wstring& FileName);
+bool UploadFile(const std::wstring& FileName,bool ShowBrowser);
 std::wstring ToUnicode(const std::string& MultiByteString);
 std::wstring ToUnicode(const std::vector<char>& MultiByteBuffer);
 std::string ToMultiByte(const std::wstring& UnicodeString);
@@ -45,6 +46,7 @@ int __stdcall wWinMain(HINSTANCE Instance,HINSTANCE,LPWSTR,int)
 
 	std::vector<wchar_t> Buffer(MAX_PATH,0);
 	DWORD Length;
+	ShowBrowser=!(GetKeyState(VK_SHIFT)&0x8000);
 
 	//自身のディレクトリを取得する
 	Length=GetModuleFileName(nullptr,Buffer.data(),MAX_PATH);
@@ -64,7 +66,7 @@ int __stdcall wWinMain(HINSTANCE Instance,HINSTANCE,LPWSTR,int)
 		//ファイルをアップロードして終了
 		if(IsPNG(__wargv[1])){
 			//PNG はそのままアップロード
-			UploadFile(__wargv[1]);
+			UploadFile(__wargv[1],ShowBrowser);
 		}else{
 			//PNG 形式に変換
 			std::vector<wchar_t> TempDirectory(MAX_PATH,0),TempFile(MAX_PATH,0);
@@ -72,7 +74,7 @@ int __stdcall wWinMain(HINSTANCE Instance,HINSTANCE,LPWSTR,int)
 			GetTempFileName(TempDirectory.data(),TempPrefix,0,TempFile.data());
 			if(ConvertPNG(TempFile.data(),__wargv[1])){
 				//アップロード
-				UploadFile(TempFile.data());
+				UploadFile(TempFile.data(),ShowBrowser);
 			}else{
 				//PNGに変換できなかった...
 				MessageBox(nullptr,L"画像をPNG形式に変換する事が出来ません。",Title,MB_OK|MB_ICONERROR);
@@ -366,7 +368,7 @@ LRESULT __stdcall WndProc(HWND WindowHandle,UINT Message,WPARAM WParam,LPARAM LP
 			GetTempPath(MAX_PATH,TempDirectory.data());
 			GetTempFileName(TempDirectory.data(),TempPrefix,0,TempFile.data());
 			
-			if(SavePNG(TempFile.data(),NewBitmap)) UploadFile(TempFile.data());
+			if(SavePNG(TempFile.data(),NewBitmap)) UploadFile(TempFile.data(),ShowBrowser);
 			else MessageBox(WindowHandle,L"一時ファイルの保存に失敗しました。",Title,MB_OK|MB_ICONERROR);
 
 			//後始末
@@ -401,7 +403,7 @@ void SetClipBoardText(const std::wstring& String)
 	//クリップボードを開く
 	OpenClipboard(nullptr);
 	EmptyClipboard();
-	SetClipboardData(CF_TEXT,TextHandle);
+	SetClipboardData(CF_UNICODETEXT,TextHandle);
 	CloseClipboard();
 
 	//解放
@@ -424,19 +426,18 @@ void OpenUrl(const std::wstring& Url)
 //IDを生成・ロードする
 std::string GetID()
 {
-	std::vector<wchar_t> IDFile(MAX_PATH,0),IDDirectory(MAX_PATH,0);
+	std::vector<wchar_t> Buffer(MAX_PATH,0);
 	std::string IDString;
 	bool OldIDFileExist=false;
 
-	SHGetSpecialFolderPath(nullptr,IDFile.data(),CSIDL_APPDATA,false);
-	std::wcscat(IDFile.data(),L"\\81Gyazo");
-	std::wcscpy(IDDirectory.data(),IDFile.data());
-	std::wcscat(IDFile.data(),L"\\id.txt");
+	SHGetSpecialFolderPath(nullptr,Buffer.data(),CSIDL_APPDATA,false);
+	std::wstring IDFile(Buffer.data());
+	IDFile=IDFile+L"\\81Gyazo"+L"\\id.txt";
 
 	//まずはファイルから ID をロード
 	std::ifstream IDFileStream;
 
-	IDFileStream.open(IDFile.data());
+	IDFileStream.open(IDFile);
 	if(!!IDFileStream){
 		//IDを読み込む
 		IDFileStream>>IDString;
@@ -448,17 +449,16 @@ std::string GetID()
 //IDを保存する
 bool SaveID(const std::wstring& IDString)
 {
-	std::vector<wchar_t> IDFile(MAX_PATH,0),IDDirectory(MAX_PATH,0);
+	std::vector<wchar_t> Buffer(MAX_PATH,0);
 
-	SHGetSpecialFolderPath(nullptr,IDFile.data(),CSIDL_APPDATA,false);
-	std::wcscat(IDFile.data(),L"\\81Gyazo");
-	std::wcscpy(IDDirectory.data(),IDFile.data());
-	std::wcscat(IDFile.data(),L"\\id.txt");
+	SHGetSpecialFolderPath(nullptr,Buffer.data(),CSIDL_APPDATA,false);
+	std::wstring IDDirectory(Buffer.data());
+	IDDirectory+=L"\\81Gyazo";
 
 	//IDを保存する
-	CreateDirectory(IDDirectory.data(),nullptr);
+	CreateDirectory(IDDirectory.c_str(),nullptr);
 	std::ofstream IDFileStream;
-	IDFileStream.open(IDFile.data());
+	IDFileStream.open(IDDirectory+L"\\id.txt");
 	if(!!IDFileStream){
 		IDFileStream<<ToMultiByte(IDString);
 		IDFileStream.close();
@@ -467,9 +467,8 @@ bool SaveID(const std::wstring& IDString)
 }
 
 // PNG ファイルをアップロードする.
-bool UploadFile(const std::wstring& FileName)
+bool UploadFile(const std::wstring& FileName,bool ShowBrowser)
 {
-	const bool ShowBrowser=!(GetKeyState(VK_SHIFT)&0x8000);
 	const std::string Boundary="----BOUNDARYBOUNDARY----",NewLine="\r\n";
 	const std::wstring Header=L"Content-Type: multipart/form-data; boundary="+ToUnicode(Boundary);
 	std::ostringstream MessageStream;//送信メッセージ
