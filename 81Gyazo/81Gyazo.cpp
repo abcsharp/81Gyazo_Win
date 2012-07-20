@@ -13,7 +13,7 @@ const wchar_t* Title=L"81Gyazo",
 	*ScriptName=L"upload.cgi";
 HWND LayerWindowHandle;
 int OffsetX, OffsetY;//画面オフセット
-bool ShowBrowser;
+bool ShowBrowser=true;
 Gdiplus::GdiplusStartupInput StartupInput;
 ULONG_PTR Token;
 std::shared_ptr<void> Brush;//HBRUSH
@@ -46,7 +46,6 @@ int __stdcall wWinMain(HINSTANCE Instance,HINSTANCE,LPWSTR,int)
 
 	std::vector<wchar_t> Buffer(MAX_PATH,0);
 	DWORD Length;
-	ShowBrowser=!(GetKeyState(VK_SHIFT)&0x8000);
 
 	//自身のディレクトリを取得する
 	Length=GetModuleFileName(nullptr,Buffer.data(),MAX_PATH);
@@ -55,6 +54,9 @@ int __stdcall wWinMain(HINSTANCE Instance,HINSTANCE,LPWSTR,int)
 
 	//カレントディレクトリをexeと同じ場所に設定
 	SetCurrentDirectory(ThisPath.c_str());
+
+	//Shiftキーが押されていたらアップロードした画像を開かない
+	ShowBrowser=!(GetKeyState(VK_SHIFT)&0x8000);
 
 	if(Gdiplus::GdiplusStartup(&Token,&StartupInput,nullptr)!=Gdiplus::Status::Ok) return 1;
 
@@ -415,11 +417,7 @@ void SetClipBoardText(const std::wstring& String)
 void OpenUrl(const std::wstring& Url)
 {
 	//コマンドを実行
-	SHELLEXECUTEINFO ExecuteInfo={0};
-	ExecuteInfo.cbSize=sizeof(SHELLEXECUTEINFO);
-	ExecuteInfo.lpVerb=L"open";
-	ExecuteInfo.lpFile=Url.c_str();
-	ShellExecuteEx(&ExecuteInfo);
+	ShellExecute(nullptr,L"open",Url.c_str(),nullptr,nullptr,SW_SHOW);
 	return;
 }
 
@@ -552,7 +550,7 @@ bool UploadFile(const std::wstring& FileName,bool ShowBrowser)
 			std::wcscpy(NewID.data(),L"X-Gyazo-Id");
 
 			HttpQueryInfo(RequestHandle.get(),HTTP_QUERY_CUSTOM,NewID.data(),&Length,0);
-			if(GetLastError()!=ERROR_HTTP_HEADER_NOT_FOUND&&Length)	SaveID(NewID.data());
+			if(GetLastError()==S_OK) SaveID(NewID.data());
 
 			//結果を読取る
 			std::vector<char> ResultBuffer(1024,0);
